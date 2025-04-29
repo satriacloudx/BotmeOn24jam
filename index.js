@@ -1,15 +1,26 @@
-// Import Modul
-const express = require('express');
-const { makeWASocket, useMultiFileAuthState } = require("@whiskeysockets/baileys");
+// Import Module
+const {
+    makeWASocket,
+    useMultiFileAuthState,
+} = require("@whiskeysockets/baileys");
 const pino = require("pino");
 const chalk = require("chalk");
 const readline = require("readline");
 const { resolve } = require("path");
-
+const express = require("express");
 const app = express();
 const port = process.env.PORT || 4000;
 
+app.get("/", (req, res) => {
+    res.send("Bot Active!");
+});
+
+app.listen(port, () => {
+    console.log(`Example app listening on port ${port}`);
+});
+
 // Metode Pairing
+// True = Pairing Code || False = Scan QR
 const usePairingCode = false;
 
 // Fungsi untuk prompt input dari terminal
@@ -40,10 +51,10 @@ async function connectToWhatsApp() {
     // Membuat Koneksi WhatsApp
     const devvx = makeWASocket({
         logger: pino({ level: "silent" }),
-        printQRInTerminal: !usePairingCode,
-        auth: state,
-        browser: ["Ubuntu", "Chrome", "20.0.04"],
-        version: [2, 3000, 1015901307],
+        printQRInTerminal: !usePairingCode, // Menampilkan QR jika tidak menggunakan pairing code
+        auth: state, // Pakai sesi yang ada
+        browser: ["Ubuntu", "Chrome", "20.0.04"], // Simulasi Browser
+        version: [2, 3000, 1015901307], // Versi WhatsApp
     });
 
     // Periksa jika `creds` belum ada atau sesi belum terdaftar
@@ -62,9 +73,11 @@ async function connectToWhatsApp() {
 
     // Informasi Koneksi
     devvx.ev.on("connection.update", (update) => {
-        const { connection } = update;
+        const { connection, lastDisconnect } = update;
         if (connection === "close") {
-            console.log(chalk.red("❌  Koneksi Terputus, Mencoba Menyambung Ulang"));
+            console.log(
+                chalk.red("❌  Koneksi Terputus, Mencoba Menyambung Ulang"),
+            );
             connectToWhatsApp();
         } else if (connection === "open") {
             console.log(chalk.green("✔  Bot Berhasil Terhubung Ke WhatsApp"));
@@ -84,6 +97,7 @@ async function connectToWhatsApp() {
         const sender = msg.key.remoteJid;
         const pushname = msg.pushName || "Devvx";
 
+        // Log Pesan Masuk di Terminal
         const listColor = [
             "red",
             "green",
@@ -103,40 +117,26 @@ async function connectToWhatsApp() {
             chalk[randomColor](" : "),
             chalk.white(body),
         );
+
+        // Tangani respons jika pesan adalah '.ping'
+        if (body.startsWith(".ping")) {
+            // Menghitung durasi aktif
+            const uptime = Math.floor((Date.now() - startTime) / 1000); // Durasi dalam detik
+            const hours = Math.floor(uptime / 3600);
+            const minutes = Math.floor((uptime % 3600) / 60);
+            const seconds = uptime % 60;
+
+            // Membuat format output tanpa pluralisasi dan tanpa (s)
+            let reply = `Active: ${hours} hour ${minutes} minute ${seconds} second`;
+
+            // Mengirim balasan
+            await devvx.sendMessage(msg.key.remoteJid, { text: reply });
+        }
+
+        // Menggunakan eksternal file untuk memproses pesan masuk
+        require("./devvx")(devvx, m);
     });
 }
 
 // Jalankan Koneksi WhatsApp
 connectToWhatsApp();
-
-// Endpoint Express untuk root ("/")
-app.get('/', (req, res) => {
-    res.setHeader('Content-Type', 'application/json');
-    const data = {
-        status: 'true',
-        message: 'Bot Successfully Activated!',
-        author: 'SATRIADEV'
-    };
-    const result = {
-        response: data
-    };
-    res.send(JSON.stringify(result, null, 2));
-});
-
-// Fungsi untuk mendengarkan pada port
-function listenOnPort(port) {
-    app.listen(port, () => {
-        console.log(`Server is running on port ${port}`);
-    });
-    app.on('error', (err) => {
-        if (err.code === 'EADDRINUSE') {
-            console.log(`Port ${port} is already in use. Trying another port...`);
-            listenOnPort(port + 1);
-        } else {
-            console.error(err);
-        }
-    });
-}
-
-// Mulai server Express pada port yang tersedia
-listenOnPort(port);
