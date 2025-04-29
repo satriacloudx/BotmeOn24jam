@@ -7,6 +7,7 @@ const pino = require("pino");
 const chalk = require("chalk");
 const readline = require("readline");
 const { resolve } = require("path");
+const port = process.env.PORT || 4000
 
 // Metode Pairing
 // True = Pairing Code || False = Scan QR
